@@ -1,0 +1,14 @@
+### get api ping
+GET http://localhost:8080/ping
+
+### get api metrics
+GET http://localhost:8080/metrics
+
+### post api order
+POST http://localhost:8080/order
+Content-Type: application/json
+
+{
+  "product_id": "123",
+  "quantity": 10
+}

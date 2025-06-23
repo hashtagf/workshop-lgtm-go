@@ -8,18 +8,18 @@ services:
       - "8080:8080"
     environment:
       - SERVICE_NAME=order-service
-      - OTEL_ENDPOINT=http://tempo:4318
+      - OTEL_ENDPOINT=tempo:4318
     logging:
       driver: loki
-      options: 
+      options:
         loki-url: http://localhost:3100/loki/api/v1/push
-  
+
   loki:
     image: grafana/loki:latest
     ports:
       - "3100:3100"
     command: -config.file=/etc/loki/local-config.yaml
-    
+
   grafana:
     image: grafana/grafana:latest
     volumes:
@@ -37,7 +37,7 @@ services:
     image: grafana/tempo:latest
     ports:
       - "4318:4318"
-    command: [ "-config.file=/etc/tempo.yaml" ]
+    command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./configs/tempo.yaml:/etc/tempo.yaml
 

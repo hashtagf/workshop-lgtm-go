@@ -16,13 +16,6 @@ import (
 	ginprometheus "github.com/zsais/go-gin-prometheus"
 )
 
-var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
-
-var config = sloggin.Config{
-	WithSpanID:  true,
-	WithTraceID: true,
-}
-
 var (
 	totalPingRequest = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -52,17 +45,22 @@ func startGinServer() {
 	prometheus.MustRegister(totalPingRequestDuration)
 
 	// start gin server
-	router := gin.Default()
-
-	// Recovery gin
-	router.Use(gin.Recovery())
+	router := gin.New()
 
 	// add metrics
 	p := ginprometheus.NewPrometheus("gin")
 	p.Use(router)
 
 	// logger
-	// router.Use(sloggin.NewWithConfig(logger, config))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	config := sloggin.Config{
+		// WithRequestID: true,
+		WithSpanID:  true,
+		WithTraceID: true,
+	}
+	router.Use(sloggin.NewWithConfig(logger, config))
+
+	router.Use(gin.Recovery())
 
 	router.GET("/ping", PingHandler)
 	router.Run(":8080")
@@ -74,7 +72,7 @@ func PingHandler(c *gin.Context) {
 	timer := prometheus.NewTimer(totalPingRequestDuration.WithLabelValues(strconv.Itoa(http.StatusOK)))
 	if rand.Intn(2) == 0 {
 		totalPingRequest.WithLabelValues(strconv.Itoa(http.StatusInternalServerError)).Inc()
-		logger.Error("error", "status", http.StatusInternalServerError)
+		sloggin.AddCustomAttributes(c, slog.String("message", "error"))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "error"})
 		return
 	}
@@ -82,6 +80,6 @@ func PingHandler(c *gin.Context) {
 
 	totalPingRequest.WithLabelValues(strconv.Itoa(http.StatusOK)).Inc()
 
-	logger.Info("pong", "status", http.StatusOK)
+	sloggin.AddCustomAttributes(c, slog.String("message", "pong"))
 	c.JSON(http.StatusOK, gin.H{"message": "pong"})
 }

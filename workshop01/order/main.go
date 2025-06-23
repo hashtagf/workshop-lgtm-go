@@ -4,7 +4,9 @@ import (
 	"context"
 	"log"
 	"log/slog"
+	"math/rand"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	sloggin "github.com/samber/slog-gin"
@@ -48,12 +50,49 @@ func main() {
 
 	// Example route
 	router.GET("/ping", func(c *gin.Context) {
+		rand.Seed(time.Now().UnixNano())
+		time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
+		if rand.Intn(2) == 0 {
+			sloggin.AddCustomAttributes(c, slog.String("message", "error"))
+			c.JSON(500, gin.H{
+				"message": "error",
+			})
+			return
+		}
 		sloggin.AddCustomAttributes(c, slog.String("ping", "pong"))
 		c.JSON(200, gin.H{
 			"message": "pong",
 		})
 	})
+
+	router.POST("/order", func(c *gin.Context) {
+		var body struct {
+			ProductID string `json:"product_id"`
+			Quantity  int    `json:"quantity"`
+		}
+
+		if err := c.ShouldBindJSON(&body); err != nil {
+			c.JSON(400, gin.H{"error": err.Error()})
+		}
+
+		total := mockOrder(c, body)
+
+		sloggin.AddCustomAttributes(c, slog.Any("total", total))
+		c.JSON(200, gin.H{
+			"message": "order",
+			"total":   total,
+		})
+	})
+
 	router.Run() // listen and serve on 0.0.0.0:8080
+}
+
+func mockOrder(c *gin.Context, body struct {
+	ProductID string `json:"product_id"`
+	Quantity  int    `json:"quantity"`
+}) float64 {
+	sloggin.AddCustomAttributes(c, slog.Any("body", body))
+	return float64(body.Quantity * 100)
 }
 
 func setupTraceProvider(endpoint string, serviceName string, serviceVersion string) (func(), error) {
