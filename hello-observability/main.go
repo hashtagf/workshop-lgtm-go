@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 
 	"math/rand"
@@ -10,8 +12,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
+	sloggin "github.com/samber/slog-gin"
 	ginprometheus "github.com/zsais/go-gin-prometheus"
 )
+
+var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+var config = sloggin.Config{
+	WithSpanID:  true,
+	WithTraceID: true,
+}
 
 var (
 	totalPingRequest = prometheus.NewCounterVec(
@@ -43,12 +53,16 @@ func startGinServer() {
 
 	// start gin server
 	router := gin.Default()
+
 	// Recovery gin
 	router.Use(gin.Recovery())
 
 	// add metrics
 	p := ginprometheus.NewPrometheus("gin")
 	p.Use(router)
+
+	// logger
+	// router.Use(sloggin.NewWithConfig(logger, config))
 
 	router.GET("/ping", PingHandler)
 	router.Run(":8080")
@@ -60,11 +74,14 @@ func PingHandler(c *gin.Context) {
 	timer := prometheus.NewTimer(totalPingRequestDuration.WithLabelValues(strconv.Itoa(http.StatusOK)))
 	if rand.Intn(2) == 0 {
 		totalPingRequest.WithLabelValues(strconv.Itoa(http.StatusInternalServerError)).Inc()
+		logger.Error("error", "status", http.StatusInternalServerError)
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "error"})
 		return
 	}
 	timer.ObserveDuration()
 
 	totalPingRequest.WithLabelValues(strconv.Itoa(http.StatusOK)).Inc()
+
+	logger.Info("pong", "status", http.StatusOK)
 	c.JSON(http.StatusOK, gin.H{"message": "pong"})
 }
