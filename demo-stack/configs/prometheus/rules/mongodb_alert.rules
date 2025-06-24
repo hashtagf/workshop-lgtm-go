@@ -1,0 +1,11 @@
+groups:
+- name: mongodb_alerts
+  rules:
+  - alert: MongodbDown
+    expr: absent(up{job="mongodb"}) == 1
+    for: 0m
+    labels:
+      severity: critical
+    annotations:
+      summary: MongoDB Down (instance {{ $labels.instance }})
+      description: "MongoDB instance is down\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"

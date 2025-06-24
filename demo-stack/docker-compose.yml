@@ -1,0 +1,96 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - 5672:5672
+      - 15672:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+  
+  mongo:
+    image: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./db:/docker-entrypoint-initdb.d
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    ports:
+      - 16686:16686
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.128.0
+    command: ["--config=/etc/otel-collector.yaml"]
+    volumes:
+      - ./configs/otel-collector.yaml:/etc/otel-collector.yaml
+    ports:
+      - 4317:4317
+      - 4318:4318
+
+  service_a:
+    build:
+      context: .
+      dockerfile: ./service_a/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - OTEL_SERVICE_NAME=service_a
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      - OTEL_METRIC_EXPORT_INTERVAL=1000
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - PRODUCTS_URL=http://service_c:8080
+
+  service_b:
+    build:
+      context: .
+      dockerfile: ./service_b/Dockerfile
+    environment:
+      - OTEL_SERVICE_NAME=service_b
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+
+  service_c:
+    build:
+      context: .
+      dockerfile: ./service_c/Dockerfile
+    ports:
+      - "8083:8080"
+    environment:
+      - OTEL_SERVICE_NAME=service_c
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      - OTEL_METRIC_EXPORT_INTERVAL=1000
+      - MONGO_URI=mongodb://mongo:27017/test?connect=direct
+
+# ------ Metric and Alert 
+  alertmanager:
+    image: prom/alertmanager:latest
+    command:
+      - '--config.file=/etc/alertmanager/config.yaml'
+      - '--storage.path=/alertmanager'
+    volumes:
+      - ./configs/alertmanager/config.yaml:/etc/alertmanager/config.yaml
+    ports:
+      - "9093:9093"
+
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+    volumes:
+      - ./configs/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml
+      - ./configs/prometheus/rules:/etc/prometheus/rules
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - ./configs/grafana/provisioning:/etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false

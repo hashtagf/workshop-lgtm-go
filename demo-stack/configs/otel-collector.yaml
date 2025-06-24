@@ -1,0 +1,43 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  # mongodb:
+  #   hosts:
+  #     - endpoint: mongo:27017
+  #   collection_interval: 5s
+  #   initial_delay: 5s
+  #   database: test
+  #   tls:
+  #     insecure: true
+  #     insecure_skip_verify: true
+
+processors:
+extensions:
+  health_check: {}
+exporters:
+  otlp:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+  prometheus:
+    endpoint: 0.0.0.0:1234
+    namespace: demo01
+  debug:
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: []
+      exporters: [otlp, debug]
+
+    metrics:
+      receivers: [otlp]
+      # receivers: [otlp, mongodb]
+      processors: []
+      exporters: [prometheus, debug]
